@@ -1,1 +1,1016 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Browser Extensie</title>
+    <!-- Tailwind CSS voor strakke responsieve styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome voor game-iconen -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts: Inter & Press Start 2P voor arcade stijl -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #090d16;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+        }
+        .font-arcade {
+            font-family: 'Press Start 2P', cursive;
+        }
+        /* Subtiele glow en knoppen-animatie */
+        .game-btn {
+            transition: transform 0.06s ease, background-color 0.1s ease, box-shadow 0.1s ease;
+            touch-action: manipulation;
+        }
+        .game-btn:active, .game-btn.pressed {
+            transform: scale(0.93);
+            background-color: #1e293b;
+            border-color: #22d3ee;
+            box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 sm:p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
 
+    <!-- Hoofdcontainer geoptimaliseerd voor zowel Browser Extensie Popup als volledig scherm -->
+    <div class="w-full max-w-[390px] bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl shadow-cyan-950/40 p-3 sm:p-4 flex flex-col gap-3">
+
+        <!-- Bovenste Balk: Titel & Actieknoppen -->
+        <header class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-cyan-500 to-purple-600 flex items-center justify-center shadow-md shadow-cyan-500/20">
+                    <i class="fa-solid fa-cubes text-xs text-white"></i>
+                </div>
+                <h1 class="font-arcade text-xs tracking-wider bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">TETRIS</h1>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+                <!-- Geluid aan/uit knop -->
+                <button id="soundBtn" title="Geluid aan/uit" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition-colors">
+                    <i id="soundIcon" class="fa-solid fa-volume-high text-xs"></i>
+                </button>
+                <!-- Pauze knop -->
+                <button id="pauseBtn" title="Pauzeren (P)" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition-colors">
+                    <i id="pauseIcon" class="fa-solid fa-pause text-xs"></i>
+                </button>
+                <!-- Extensie Installatie Uitleg knop -->
+                <button id="extInfoBtn" title="Browser Extensie Manifest" class="w-8 h-8 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/40 flex items-center justify-center text-indigo-300 transition-colors">
+                    <i class="fa-solid fa-puzzle-piece text-xs"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Midden Sectie: Speelveld Links + Zijpaneel Rechts -->
+        <main class="flex gap-3 items-stretch justify-center">
+
+            <!-- Speelveld Wrapper -->
+            <div class="relative rounded-xl overflow-hidden border-2 border-slate-800 bg-[#090d16] shadow-inner flex-shrink-0">
+                <!-- Canvas voor het speelveld (10 kolommen x 20 rijen) -->
+                <canvas id="tetrisCanvas" width="210" height="420"></canvas>
+
+                <!-- Start Menu Overlay -->
+                <div id="startOverlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-between p-3.5 text-center z-20">
+                    <div class="w-full pt-1">
+                        <div class="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-400/30 mb-1.5 shadow-lg shadow-cyan-500/10">
+                            <i class="fa-solid fa-cubes-stacked text-lg text-cyan-400"></i>
+                        </div>
+                        <h2 class="font-arcade text-sm tracking-wider bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent">TETRIS</h2>
+                        <p class="text-[11px] text-slate-400 mt-1">Highscore: <span id="menuHighScore" class="font-bold text-amber-400">0</span></p>
+                    </div>
+
+                    <!-- Snelheid / Startlevel Keuze -->
+                    <div class="w-full space-y-1.5">
+                        <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Startsnelheid</label>
+                        <div class="grid grid-cols-3 gap-1" id="difficultySelector">
+                            <button type="button" data-level="1" class="diff-btn py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-cyan-400 bg-cyan-500/20 text-cyan-300 transition-all">
+                                Normaal
+                            </button>
+                            <button type="button" data-level="4" class="diff-btn py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-700 bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-all">
+                                Snel
+                            </button>
+                            <button type="button" data-level="7" class="diff-btn py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-700 bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-all">
+                                Expert
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Beknopte Besturingsgids -->
+                    <div class="w-full bg-slate-900/90 border border-slate-800 rounded-xl p-2 text-[10px] text-slate-400 space-y-1 text-left">
+                        <div class="flex justify-between"><span>Bewegen / Draaien</span><span class="text-slate-200 font-medium">Pijltjes</span></div>
+                        <div class="flex justify-between"><span>Direct vallen</span><span class="text-slate-200 font-medium">Spatie</span></div>
+                        <div class="flex justify-between"><span>Vorm bewaren</span><span class="text-slate-200 font-medium">C / Shift</span></div>
+                    </div>
+
+                    <!-- Start Knop -->
+                    <button type="button" id="startMenuBtn" class="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/25 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-play"></i> Start Spel
+                    </button>
+                </div>
+
+                <!-- Pauze Overlay -->
+                <div id="pauseOverlay" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-10">
+                    <i class="fa-solid fa-pause text-2xl text-cyan-400 mb-2"></i>
+                    <h2 class="font-arcade text-xs text-white mb-2">GEPAUZEERD</h2>
+                    <p class="text-[11px] text-slate-400 mb-4">Druk op P om door te gaan</p>
+                    <div class="flex flex-col gap-2 w-full px-2">
+                        <button id="resumeBtn" class="w-full py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 transition-all">
+                            Hervatten
+                        </button>
+                        <button id="backToMenuBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs uppercase tracking-wider border border-slate-700 transition-all">
+                            Startmenu
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Game Over Overlay -->
+                <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-10">
+                    <i class="fa-solid fa-skull text-2xl text-rose-500 mb-2 animate-bounce"></i>
+                    <h2 class="font-arcade text-xs text-rose-400 mb-1">GAME OVER</h2>
+                    <p class="text-[11px] text-slate-300">Eindscore:</p>
+                    <p id="finalScore" class="text-xl font-bold text-white mb-4">0</p>
+                    <div class="flex flex-col gap-2 w-full px-2">
+                        <button id="restartBtn" class="w-full py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/25 transition-all active:scale-95">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> Opnieuw
+                        </button>
+                        <button id="gameOverMenuBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs uppercase tracking-wider border border-slate-700 transition-all">
+                            Startmenu
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rechter Zijpaneel: Volgende, Bewaar & Statistieken -->
+            <aside class="flex-1 flex flex-col justify-between gap-2 min-w-[112px]">
+                <!-- Volgende Vorm -->
+                <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-2 flex flex-col items-center">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Volgende</span>
+                    <canvas id="nextCanvas" width="76" height="56" class="rounded-lg bg-slate-900/60"></canvas>
+                </div>
+
+                <!-- Bewaar (Hold) Vorm -->
+                <div id="holdContainer" class="bg-slate-950/70 border border-slate-800 rounded-xl p-2 flex flex-col items-center transition-opacity">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bewaar (C)</span>
+                    <canvas id="holdCanvas" width="76" height="56" class="rounded-lg bg-slate-900/60"></canvas>
+                </div>
+
+                <!-- Score & Highscore -->
+                <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 space-y-2 flex-1 flex flex-col justify-center">
+                    <div>
+                        <span class="block text-[10px] uppercase tracking-wider text-slate-400">Score</span>
+                        <span id="scoreEl" class="text-base font-extrabold text-cyan-400">0</span>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] uppercase tracking-wider text-slate-400">Highscore</span>
+                        <span id="highScoreEl" class="text-sm font-bold text-amber-400">0</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 pt-1 border-t border-slate-800/80">
+                        <div>
+                            <span class="block text-[9px] uppercase text-slate-500">Level</span>
+                            <span id="levelEl" class="text-xs font-bold text-purple-400">1</span>
+                        </div>
+                        <div>
+                            <span class="block text-[9px] uppercase text-slate-500">Lijnen</span>
+                            <span id="linesEl" class="text-xs font-bold text-emerald-400">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Onderste Bedieningspaneel (Snelle DAS/ARR Touch & Muis Knoppen) -->
+        <footer class="pt-1">
+            <div class="grid grid-cols-5 gap-1.5">
+                <button id="btnLeft" aria-label="Links" class="game-btn py-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-slate-200 flex items-center justify-center shadow">
+                    <i class="fa-solid fa-arrow-left text-sm"></i>
+                </button>
+                <button id="btnDown" aria-label="Omlaag" class="game-btn py-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-slate-200 flex items-center justify-center shadow">
+                    <i class="fa-solid fa-arrow-down text-sm"></i>
+                </button>
+                <button id="btnRight" aria-label="Rechts" class="game-btn py-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-slate-200 flex items-center justify-center shadow">
+                    <i class="fa-solid fa-arrow-right text-sm"></i>
+                </button>
+                <button id="btnRotate" aria-label="Draaien" class="game-btn py-2.5 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shadow">
+                    <i class="fa-solid fa-rotate-right text-sm"></i>
+                </button>
+                <button id="btnHold" aria-label="Bewaar" class="game-btn py-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shadow text-xs font-bold">
+                    <i class="fa-solid fa-box-archive text-sm"></i>
+                </button>
+            </div>
+            <button id="btnDrop" class="game-btn mt-1.5 w-full py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-2">
+                <i class="fa-solid fa-angles-down"></i> Direct Laten Vallen (Spatie)
+            </button>
+        </footer>
+    </div>
+
+    <!-- Modal voor Browser Extensie Manifest.json -->
+    <div id="extModal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-4 shadow-2xl space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-puzzle-piece text-indigo-400"></i> Extensie Installeren
+                </h3>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+                Sla dit bestand op als <code class="text-cyan-400 font-mono">index.html</code> en plaats onderstaand <code class="text-cyan-400 font-mono">manifest.json</code> bestand in dezelfde map. Laad de map daarna via <code class="text-amber-300 font-mono">chrome://extensions</code>.
+            </p>
+            <div class="relative">
+                <pre id="manifestCode" class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-[11px] text-emerald-400 font-mono overflow-x-auto">{
+  "manifest_version": 3,
+  "name": "Neon Tetris Arcade",
+  "version": "1.0",
+  "description": "Speel direct Tetris vanuit je browser.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Speel Tetris"
+  }
+}</pre>
+                <button id="copyManifestBtn" class="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                    <i class="fa-regular fa-copy"></i> <span id="copyBtnText">Kopieer manifest.json</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. CANVAS & GAME CONSTANTEN
+        // ==========================================
+        const canvas = document.getElementById('tetrisCanvas');
+        const ctx = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('nextCanvas');
+        const nextCtx = nextCanvas.getContext('2d');
+        const holdCanvas = document.getElementById('holdCanvas');
+        const holdCtx = holdCanvas.getContext('2d');
+
+        const COLS = 10;
+        const ROWS = 20;
+        const BLOCK_SIZE = 21; // 10 * 21 = 210px breed, 20 * 21 = 420px hoog
+
+        // Kleurenpalet voor de 7 standaard Tetromino's
+        const COLORS = [
+            null,
+            '#22d3ee', // 1: I - Cyaan
+            '#3b82f6', // 2: J - Blauw
+            '#f97316', // 3: L - Oranje
+            '#facc15', // 4: O - Geel
+            '#22c55e', // 5: S - Groen
+            '#a855f7', // 6: T - Paars
+            '#ef4444'  // 7: Z - Rood
+        ];
+
+        // Vormmatrices
+        const SHAPES = [
+            [],
+            [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], // I
+            [[2, 0, 0], [2, 2, 2], [0, 0, 0]],                         // J
+            [[0, 0, 3], [3, 3, 3], [0, 0, 0]],                         // L
+            [[4, 4], [4, 4]],                                          // O
+            [[0, 5, 5], [5, 5, 0], [0, 0, 0]],                         // S
+            [[0, 6, 0], [6, 6, 6], [0, 0, 0]],                         // T
+            [[7, 7, 0], [0, 7, 7], [0, 0, 0]]                          // Z
+        ];
+
+        // UI Elementen
+        const scoreEl = document.getElementById('scoreEl');
+        const highScoreEl = document.getElementById('highScoreEl');
+        const menuHighScoreEl = document.getElementById('menuHighScore');
+        const levelEl = document.getElementById('levelEl');
+        const linesEl = document.getElementById('linesEl');
+        const startOverlay = document.getElementById('startOverlay');
+        const pauseOverlay = document.getElementById('pauseOverlay');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const finalScoreEl = document.getElementById('finalScore');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const soundIcon = document.getElementById('soundIcon');
+        const holdContainer = document.getElementById('holdContainer');
+        const extModal = document.getElementById('extModal');
+
+        // ==========================================
+        // 2. GELUIDSEFFECTEN (Web Audio API)
+        // ==========================================
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'move') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(220, now);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                    osc.start(now);
+                    osc.stop(now + 0.04);
+                } else if (type === 'rotate') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(340, now);
+                    osc.frequency.exponentialRampToValueAtTime(520, now + 0.06);
+                    gain.gain.setValueAtTime(0.07, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+                    osc.start(now);
+                    osc.stop(now + 0.06);
+                } else if (type === 'drop') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(160, now);
+                    osc.frequency.exponentialRampToValueAtTime(65, now + 0.09);
+                    gain.gain.setValueAtTime(0.11, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                    osc.start(now);
+                    osc.stop(now + 0.09);
+                } else if (type === 'hold') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.setValueAtTime(450, now + 0.04);
+                    gain.gain.setValueAtTime(0.07, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                    osc.start(now);
+                    osc.stop(now + 0.09);
+                } else if (type === 'clear') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(554, now + 0.06);
+                    osc.frequency.setValueAtTime(659, now + 0.12);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+                    osc.start(now);
+                    osc.stop(now + 0.24);
+                } else if (type === 'gameover') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.linearRampToValueAtTime(90, now + 0.45);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                }
+            } catch (e) {
+                // Negeer audiofouten als browser autoplay blokkeert
+            }
+        }
+
+        // ==========================================
+        // 3. SPELSTATUS & LOGICA
+        // ==========================================
+        const board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+
+        const player = {
+            pos: { x: 0, y: 0 },
+            matrix: null,
+            type: 0
+        };
+
+        let nextPieceType = 0;
+        let holdPieceType = 0;
+        let canHold = true;
+
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('tetris_ext_highscore'), 10) || 0;
+        let selectedStartLevel = 1;
+        let level = 1;
+        let lines = 0;
+
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+
+        let isStarted = false;
+        let isPaused = false;
+        let isGameOver = false;
+        let animationFrameId = null;
+
+        highScoreEl.textContent = highScore;
+        menuHighScoreEl.textContent = highScore;
+
+        function createPieceMatrix(type) {
+            return SHAPES[type].map(row => [...row]);
+        }
+
+        function randomPieceType() {
+            return Math.floor(Math.random() * 7) + 1;
+        }
+
+        // Controleer botsing met wanden, vloer of bestaande blokken
+        function collide(arena, p) {
+            const m = p.matrix;
+            const o = p.pos;
+            for (let y = 0; y < m.length; y++) {
+                for (let x = 0; x < m[y].length; x++) {
+                    if (m[y][x] !== 0) {
+                        const newY = y + o.y;
+                        const newX = x + o.x;
+                        if (
+                            newX < 0 ||
+                            newX >= COLS ||
+                            newY >= ROWS ||
+                            (newY >= 0 && arena[newY][newX] !== 0)
+                        ) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Zet blok vast in het speelveld
+        function merge(arena, p) {
+            p.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0 && y + p.pos.y >= 0) {
+                        arena[y + p.pos.y][x + p.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        // Matrix 90 graden met de klok mee draaien
+        function rotateMatrix(matrix) {
+            for (let y = 0; y < matrix.length; y++) {
+                for (let x = 0; x < y; x++) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            matrix.forEach(row => row.reverse());
+        }
+
+        // Plaats nieuw blok bovenaan
+        function resetPlayer(forcedType = null) {
+            if (forcedType !== null) {
+                player.type = forcedType;
+            } else {
+                if (nextPieceType === 0) {
+                    nextPieceType = randomPieceType();
+                }
+                player.type = nextPieceType;
+                nextPieceType = randomPieceType();
+            }
+
+            player.matrix = createPieceMatrix(player.type);
+            player.pos.y = 0;
+            player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
+
+            drawPreviewPiece(nextCtx, nextCanvas, nextPieceType);
+
+            // Controleer direct op Game Over
+            if (collide(board, player)) {
+                isGameOver = true;
+                activeKeys.clear();
+                playSound('gameover');
+                finalScoreEl.textContent = score;
+                gameOverOverlay.classList.remove('hidden');
+            }
+        }
+
+        // Bewaar huidige vorm of wissel met opgeslagen vorm (Hold-functie)
+        function playerHold() {
+            if (!isStarted || isPaused || isGameOver || !canHold) return;
+
+            playSound('hold');
+            canHold = false;
+            holdContainer.classList.add('opacity-50');
+
+            const currentType = player.type;
+            if (holdPieceType === 0) {
+                holdPieceType = currentType;
+                resetPlayer();
+            } else {
+                const temp = holdPieceType;
+                holdPieceType = currentType;
+                resetPlayer(temp);
+            }
+            drawPreviewPiece(holdCtx, holdCanvas, holdPieceType);
+        }
+
+        // Laat blok 1 rij zakken
+        function playerDrop() {
+            if (!isStarted || isPaused || isGameOver) return;
+            player.pos.y++;
+            if (collide(board, player)) {
+                player.pos.y--;
+                merge(board, player);
+                playSound('drop');
+                canHold = true;
+                holdContainer.classList.remove('opacity-50');
+                sweepLines();
+                resetPlayer();
+            }
+            dropCounter = 0;
+        }
+
+        // Direct naar beneden laten vallen (Hard Drop)
+        function playerHardDrop() {
+            if (!isStarted || isPaused || isGameOver) return;
+            let cellsDropped = 0;
+            while (!collide(board, player)) {
+                player.pos.y++;
+                cellsDropped++;
+            }
+            player.pos.y--;
+            if (cellsDropped > 1) {
+                score += (cellsDropped - 1) * 2;
+                updateStats();
+            }
+            merge(board, player);
+            playSound('drop');
+            canHold = true;
+            holdContainer.classList.remove('opacity-50');
+            sweepLines();
+            resetPlayer();
+            dropCounter = 0;
+        }
+
+        // Beweeg links of rechts
+        function playerMove(dir) {
+            if (!isStarted || isPaused || isGameOver) return;
+            player.pos.x += dir;
+            if (collide(board, player)) {
+                player.pos.x -= dir;
+            } else {
+                playSound('move');
+            }
+        }
+
+        // Roteer het blok met Wall Kick ondersteuning
+        function playerRotate() {
+            if (!isStarted || isPaused || isGameOver) return;
+            const pos = player.pos.x;
+            let offset = 1;
+            rotateMatrix(player.matrix);
+
+            while (collide(board, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotateMatrix(player.matrix);
+                    rotateMatrix(player.matrix);
+                    rotateMatrix(player.matrix);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+            playSound('rotate');
+        }
+
+        // Controleer en verwijder volle rijen
+        function sweepLines() {
+            let rowCount = 0;
+            outer: for (let y = ROWS - 1; y >= 0; y--) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x] === 0) {
+                        continue outer;
+                    }
+                }
+                const row = board.splice(y, 1)[0].fill(0);
+                board.unshift(row);
+                y++;
+                rowCount++;
+            }
+
+            if (rowCount > 0) {
+                playSound('clear');
+                const lineScores = [0, 100, 300, 500, 800];
+                score += (lineScores[rowCount] || 800) * level;
+                lines += rowCount;
+                level = Math.max(selectedStartLevel, Math.floor(lines / 10) + 1);
+                dropInterval = Math.max(100, 1000 - (level - 1) * 85);
+                updateStats();
+            }
+        }
+
+        function updateStats() {
+            scoreEl.textContent = score;
+            levelEl.textContent = level;
+            linesEl.textContent = lines;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('tetris_ext_highscore', highScore);
+                highScoreEl.textContent = highScore;
+                menuHighScoreEl.textContent = highScore;
+            }
+        }
+
+        // ==========================================
+        // 4. TEKENFUNCTIES (CANVAS RENDERING)
+        // ==========================================
+        function drawBlock(context, x, y, colorIndex, size, isGhost = false) {
+            const px = x * size;
+            const py = y * size;
+            const color = COLORS[colorIndex];
+
+            if (isGhost) {
+                context.strokeStyle = color;
+                context.lineWidth = 1.5;
+                context.globalAlpha = 0.28;
+                context.strokeRect(px + 1.5, py + 1.5, size - 3, size - 3);
+                context.globalAlpha = 1;
+                return;
+            }
+
+            context.fillStyle = color;
+            context.fillRect(px + 0.5, py + 0.5, size - 1, size - 1);
+
+            // Lichte highlight boven/links voor 3D-effect
+            context.fillStyle = 'rgba(255, 255, 255, 0.28)';
+            context.fillRect(px + 1, py + 1, size - 2, 3);
+            context.fillRect(px + 1, py + 1, 3, size - 2);
+
+            // Schaduw onder/rechts
+            context.fillStyle = 'rgba(0, 0, 0, 0.28)';
+            context.fillRect(px + 1, py + size - 3, size - 2, 2);
+        }
+
+        function drawMatrix(context, matrix, offset, size, isGhost = false) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        drawBlock(context, x + offset.x, y + offset.y, value, size, isGhost);
+                    }
+                });
+            });
+        }
+
+        // Teken schaduwblok (Ghost piece) op de landingsplek
+        function drawGhostPiece() {
+            if (!player.matrix) return;
+            const ghost = {
+                pos: { x: player.pos.x, y: player.pos.y },
+                matrix: player.matrix
+            };
+            while (!collide(board, ghost)) {
+                ghost.pos.y++;
+            }
+            ghost.pos.y--;
+            drawMatrix(ctx, ghost.matrix, ghost.pos, BLOCK_SIZE, true);
+        }
+
+        function drawBoardOnly() {
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Subtiel raster
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            for (let x = 1; x < COLS; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * BLOCK_SIZE, 0);
+                ctx.lineTo(x * BLOCK_SIZE, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 1; y < ROWS; y++) {
+                ctx.beginPath();
+                ctx.moveTo(0, y * BLOCK_SIZE);
+                ctx.lineTo(canvas.width, y * BLOCK_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        function draw() {
+            drawBoardOnly();
+            drawMatrix(ctx, board, { x: 0, y: 0 }, BLOCK_SIZE);
+            if (isStarted && !isGameOver) {
+                drawGhostPiece();
+                drawMatrix(ctx, player.matrix, player.pos, BLOCK_SIZE);
+            }
+        }
+
+        // Teken een blokje gecentreerd in het Volgende- of Bewaar-venster
+        function drawPreviewPiece(context, targetCanvas, pieceType) {
+            context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+            if (!pieceType) return;
+
+            const matrix = SHAPES[pieceType];
+            const previewSize = 15;
+
+            // Bereken exacte bounding box van de gevulde cellen
+            let minX = 4, maxX = 0, minY = 4, maxY = 0;
+            matrix.forEach((row, y) => {
+                row.forEach((val, x) => {
+                    if (val !== 0) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                });
+            });
+
+            const pieceWidth = (maxX - minX + 1) * previewSize;
+            const pieceHeight = (maxY - minY + 1) * previewSize;
+            const offsetX = (targetCanvas.width - pieceWidth) / 2 - minX * previewSize;
+            const offsetY = (targetCanvas.height - pieceHeight) / 2 - minY * previewSize;
+
+            matrix.forEach((row, y) => {
+                row.forEach((val, x) => {
+                    if (val !== 0) {
+                        const px = offsetX + x * previewSize;
+                        const py = offsetY + y * previewSize;
+                        context.fillStyle = COLORS[val];
+                        context.fillRect(px + 0.5, py + 0.5, previewSize - 1, previewSize - 1);
+                        context.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                        context.fillRect(px + 1, py + 1, previewSize - 2, 2.5);
+                    }
+                });
+            });
+        }
+
+        // ==========================================
+        // 5. SNELLE BESTURING (DAS / ARR SYSTEEM)
+        // ==========================================
+        const DAS_DELAY = 110; // Vertraging in ms voordat snelle herhaling start
+        const ARR_RATE = 35;   // Herhaalsnelheid in ms (razendsnel schuiven)
+        const activeKeys = new Map();
+
+        function triggerControlAction(action) {
+            if (action === 'left') playerMove(-1);
+            else if (action === 'right') playerMove(1);
+            else if (action === 'down') playerDrop();
+        }
+
+        function startRepeatAction(keyId, action) {
+            if (activeKeys.has(keyId)) return;
+            triggerControlAction(action);
+            activeKeys.set(keyId, {
+                action,
+                elapsed: 0,
+                repeating: false
+            });
+        }
+
+        function stopRepeatAction(keyId) {
+            activeKeys.delete(keyId);
+        }
+
+        function processHeldControls(deltaTime) {
+            activeKeys.forEach((state) => {
+                state.elapsed += deltaTime;
+                if (!state.repeating) {
+                    if (state.elapsed >= DAS_DELAY) {
+                        state.repeating = true;
+                        state.elapsed = 0;
+                        triggerControlAction(state.action);
+                    }
+                } else {
+                    while (state.elapsed >= ARR_RATE) {
+                        state.elapsed -= ARR_RATE;
+                        triggerControlAction(state.action);
+                    }
+                }
+            });
+        }
+
+        // Hoofd game loop
+        function update(time = 0) {
+            if (!isStarted || isPaused || isGameOver) return;
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            processHeldControls(deltaTime);
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                playerDrop();
+            }
+
+            draw();
+            animationFrameId = requestAnimationFrame(update);
+        }
+
+        // ==========================================
+        // 6. STARTMENU, PAUZE & EVENT LISTENERS
+        // ==========================================
+        function startGame() {
+            board.forEach(row => row.fill(0));
+            activeKeys.clear();
+
+            score = 0;
+            level = selectedStartLevel;
+            lines = (selectedStartLevel - 1) * 10;
+            dropInterval = Math.max(100, 1000 - (level - 1) * 85);
+            nextPieceType = 0;
+            holdPieceType = 0;
+            canHold = true;
+            isStarted = true;
+            isPaused = false;
+            isGameOver = false;
+
+            holdContainer.classList.remove('opacity-50');
+            drawPreviewPiece(holdCtx, holdCanvas, 0);
+            updateStats();
+            resetPlayer();
+
+            startOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            pauseOverlay.classList.add('hidden');
+            pauseIcon.className = 'fa-solid fa-pause text-xs';
+
+            lastTime = performance.now();
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            update(lastTime);
+        }
+
+        function showStartMenu() {
+            isStarted = false;
+            isPaused = false;
+            isGameOver = false;
+            activeKeys.clear();
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            board.forEach(row => row.fill(0));
+            drawBoardOnly();
+            drawPreviewPiece(nextCtx, nextCanvas, 0);
+            drawPreviewPiece(holdCtx, holdCanvas, 0);
+
+            pauseOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            startOverlay.classList.remove('hidden');
+            pauseIcon.className = 'fa-solid fa-pause text-xs';
+        }
+
+        function togglePause() {
+            if (!isStarted || isGameOver) return;
+            isPaused = !isPaused;
+            activeKeys.clear();
+            if (isPaused) {
+                pauseOverlay.classList.remove('hidden');
+                pauseIcon.className = 'fa-solid fa-play text-xs';
+            } else {
+                pauseOverlay.classList.add('hidden');
+                pauseIcon.className = 'fa-solid fa-pause text-xs';
+                lastTime = performance.now();
+                update(lastTime);
+            }
+        }
+
+        // Toetsenbord besturing
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'KeyP') {
+                if (isStarted) togglePause();
+                return;
+            }
+            if (event.code === 'Enter' && !isStarted) {
+                startGame();
+                return;
+            }
+
+            if (!isStarted || isPaused || isGameOver) return;
+
+            if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(event.code)) {
+                event.preventDefault();
+            }
+
+            if (event.repeat) return; // Eigen snelle DAS/ARR regelt herhaling
+
+            if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+                startRepeatAction('key_left', 'left');
+            } else if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+                startRepeatAction('key_right', 'right');
+            } else if (event.code === 'ArrowDown' || event.code === 'KeyS') {
+                startRepeatAction('key_down', 'down');
+            } else if (event.code === 'ArrowUp' || event.code === 'KeyW') {
+                playerRotate();
+            } else if (event.code === 'Space') {
+                playerHardDrop();
+            } else if (event.code === 'KeyC' || event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+                playerHold();
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (event.code === 'ArrowLeft' || event.code === 'KeyA') stopRepeatAction('key_left');
+            if (event.code === 'ArrowRight' || event.code === 'KeyD') stopRepeatAction('key_right');
+            if (event.code === 'ArrowDown' || event.code === 'KeyS') stopRepeatAction('key_down');
+        });
+
+        window.addEventListener('blur', () => activeKeys.clear());
+
+        // Helper om schermknoppen direct bij aanraking (pointerdown) te laten vuren
+        function bindRepeatableButton(btnId, action) {
+            const btn = document.getElementById(btnId);
+            const keyId = 'btn_' + btnId;
+
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                btn.classList.add('pressed');
+                startRepeatAction(keyId, action);
+            });
+
+            const release = () => {
+                btn.classList.remove('pressed');
+                stopRepeatAction(keyId);
+            };
+
+            btn.addEventListener('pointerup', release);
+            btn.addEventListener('pointerleave', release);
+            btn.addEventListener('pointercancel', release);
+        }
+
+        function bindInstantButton(btnId, callback) {
+            const btn = document.getElementById(btnId);
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                btn.classList.add('pressed');
+                callback();
+            });
+            const release = () => btn.classList.remove('pressed');
+            btn.addEventListener('pointerup', release);
+            btn.addEventListener('pointerleave', release);
+            btn.addEventListener('pointercancel', release);
+        }
+
+        bindRepeatableButton('btnLeft', 'left');
+        bindRepeatableButton('btnRight', 'right');
+        bindRepeatableButton('btnDown', 'down');
+        bindInstantButton('btnRotate', playerRotate);
+        bindInstantButton('btnHold', playerHold);
+        bindInstantButton('btnDrop', playerHardDrop);
+
+        // Moeilijkheidsgraad knoppen in Startmenu
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedStartLevel = parseInt(btn.dataset.level, 10) || 1;
+                document.querySelectorAll('.diff-btn').forEach(b => {
+                    b.className = 'diff-btn py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-slate-700 bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-all';
+                });
+                btn.className = 'diff-btn py-1.5 px-1 rounded-lg text-[10px] font-semibold border border-cyan-400 bg-cyan-500/20 text-cyan-300 transition-all';
+            });
+        });
+
+        // Menu & Header knoppen
+        const startMenuBtn = document.getElementById('startMenuBtn');
+        startMenuBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            startGame();
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', togglePause);
+        document.getElementById('resumeBtn').addEventListener('click', togglePause);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        document.getElementById('backToMenuBtn').addEventListener('click', showStartMenu);
+        document.getElementById('gameOverMenuBtn').addEventListener('click', showStartMenu);
+
+        document.getElementById('soundBtn').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            soundIcon.className = soundEnabled
+                ? 'fa-solid fa-volume-high text-xs'
+                : 'fa-solid fa-volume-xmark text-xs text-rose-400';
+        });
+
+        // Extensie Modal & Klembord
+        document.getElementById('extInfoBtn').addEventListener('click', () => {
+            extModal.classList.remove('hidden');
+        });
+        document.getElementById('closeModalBtn').addEventListener('click', () => {
+            extModal.classList.add('hidden');
+        });
+        document.getElementById('copyManifestBtn').addEventListener('click', () => {
+            const text = document.getElementById('manifestCode').textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            const copyText = document.getElementById('copyBtnText');
+            copyText.textContent = 'Gekopieerd!';
+            setTimeout(() => {
+                copyText.textContent = 'Kopieer manifest.json';
+            }, 2000);
+        });
+
+        // Initialiseer het startmenu direct (en zorg dat startGame ook werkt als window.onload al geweest is)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showStartMenu);
+        } else {
+            showStartMenu();
+        }
+    </script>
+</body>
+</html>
